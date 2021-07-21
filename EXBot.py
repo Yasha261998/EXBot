@@ -4,6 +4,7 @@ import requests
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import mysql.connector as msqlc
+from mysql.connector.constants import ClientFlag
 
 # cursor.execute("CREATE DATABASE exratedb")
 # cursor.execute("CREATE TABLE exrate(id INT NOT NULL AUTO_INCREMENT, name_rate CHAR(3) NOT NULL, ex_rate FLOAT NOT NULL,PRIMARY KEY(id))")
@@ -22,8 +23,11 @@ class EXBot(object):
     format_date = "%Y-%m-%d"
     config_db = {'user': 'root',
                  'passwd': 'root',
-                 'host': 'localhost',
-                 'port': '3306',
+                 'host': '34.135.18.99',
+                 'client_flags': [ClientFlag.SSL],
+                 'ssl_ca': 'ssl/server-ca.pem',
+                 'ssl_cert': 'ssl/client-cert.pem',
+                 'ssl_key': 'ssl/client-key.pem',
                  'database': 'exratedb'}
 
     available_currs = []        # доступные валюты
