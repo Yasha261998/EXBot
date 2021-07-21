@@ -22,7 +22,7 @@ class EXBot(object):
                  'alpha': 0.3}
     format_date = "%Y-%m-%d"
     config_db = {'user': 'root',
-                 'passwd': 'root',
+                 'password': 'root',
                  'host': '34.135.18.99',
                  'client_flags': [ClientFlag.SSL],
                  'ssl_ca': 'ssl/server-ca.pem',
