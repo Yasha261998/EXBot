@@ -28,7 +28,8 @@ class EXBot(object):
                  'ssl_ca': 'ssl/server-ca.pem',
                  'ssl_cert': 'ssl/client-cert.pem',
                  'ssl_key': 'ssl/client-key.pem',
-                 'database': 'exratedb'}
+                 'database': 'exratedb',
+                 'raise_on_warnings': True}
 
     available_currs = []        # доступные валюты
     last_request = None
@@ -70,18 +71,19 @@ class EXBot(object):
                 resp = self._send_request(self.url + self.pathList, {"api_key": self.api_key,
                                                                      "currency": ','.join(self.available_currs)})
                 if resp["price"].get("error") is None:
-                    self.add_data_to_db(self.table_name, resp["price"].keys(), resp["price"].values())
                     text = ""
                     for item in zip(resp["price"].keys(), resp["price"].values()):
                         text += item[0][3:] + ": " + '{:.2f}'.format(item[1]) + "\n"
                     self._bot.send_message(message.chat.id, text)
+                    self.add_data_to_db(self.table_name, resp["price"].keys(), resp["price"].values())
             else:
                 result = self.get_data_db(self.table_name)
                 text = ""
-                if len(result) != 0:
-                    for item in result:
-                        text += item[0] + ": " + '{:.2f}'.format(item[1]) + "\n"
-                    self._bot.send_message(message.chat.id, text)
+                if result is not None:
+                    if len(result) != 0:
+                        for item in result:
+                            text += item[0] + ": " + '{:.2f}'.format(item[1]) + "\n"
+                        self._bot.send_message(message.chat.id, text)
         except Exception as ex:
             print("Error list command: " + str(ex))
 
@@ -110,7 +112,7 @@ class EXBot(object):
                                                                            "from": from_rate,
                                                                            "to": to_rate,
                                                                            "amount": amount})
-                if result["price"].get("error") is None:
+                if result.get("error") is None:
                     total = float('{:.2f}'.format(result["total"]))
                     self._bot.send_message(message.chat.id, "$" + str(total))
                 else:
@@ -189,29 +191,26 @@ class EXBot(object):
     def add_data_to_db(self, name_table, name_rates, ex_rates):
         try:
             cursor = self.mydb.cursor()
-            comm = "INSERT INTO " + name_table + " (name_rate, ex_rate) VALUES (%s, %s)"
+            comm = "INSERT INTO " + name_table + " (name_rate, ex_rate) VALUES(%s, %s) ON DUPLICATE KEY " \
+                                                 "UPDATE name_rate=VALUES(name_rate), ex_rate=VALUES(ex_rate)"
+            # comm = "INSERT IGNORE INTO " + name_table + "(name_rate, ex_rate) VALUES(%s, %s)"
             vals = []
             for item in zip(name_rates, ex_rates):
                 # если запись ещё не существует
-                if self.check_record_by_name(item[0][3:]) is False:
-                    vals.append((item[0][3:], float('{:.2f}'.format(item[1]))))
-                else:   # если существует, то обновить запись
-                    self.update_record(name_table, item[0][3:], item[1])
+                vals.append((item[0][3:], float('{:.2f}'.format(item[1]))))
             if len(vals) != 0:
                 cursor.executemany(comm, vals)
                 self.mydb.commit()
-                cursor.close()
+            cursor.close()
         except Exception as ex:
             print("Error add data to table: " + str(ex))
 
     # обновление записей таблицы
-    def update_record(self, name_table, name_rate, rate):
+    def update_or_insert_record(self, cursor, name_table, name_rate, rate):
         try:
-            cursor = self.mydb.cursor()
             comm = "UPDATE " + name_table + " SET ex_rate=%s WHERE name_rate=%s"
             vals = (float('{:.2f}'.format(rate)), name_rate)
             cursor.execute(comm, vals)
-            cursor.close()
             self.mydb.commit()
         except Exception as ex:
             print("Error update data of table: " + str(ex))
@@ -229,14 +228,13 @@ class EXBot(object):
             print("Error get data from table: " + str(ex))
 
     # проверка на наличие записи
-    def check_record_by_name(self, item, name_item='name_rate', table_name='exrate'):
+    def check_record_by_name(self, cursor, item, name_item='name_rate', table_name='exrate'):
         try:
-            cursor = self.mydb.cursor()
             comm = "SELECT " + name_item + " FROM " + table_name + " WHERE " + name_item + "=%s"
             cursor.execute(comm, (item,))
-            result = cursor.fetchall()
-            cursor.close()
-            if result is None:
+            result = cursor.fetchone()
+            print(result)
+            if len(result) == 0:
                 return False
             else:
                 return True
